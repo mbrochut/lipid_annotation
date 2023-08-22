@@ -11,11 +11,12 @@ class Lipid:
         self.sub_cls = None
         self.fatty_acid_chains = []
         self.unsaturation = []
+        self.knownFA = None
         self.known_fatty_acid_chain = []
         self.known_unsaturation = []
         self.prefix = None
         self.additional_info = None
-
+        self.from_name_to_attributes()
     # set and add functions
     def add_fatty_acid_chain(self, chain, unsaturation):
         if len(self.fatty_acid_chains) < 3:
@@ -31,38 +32,27 @@ class Lipid:
     
     def from_name_to_attributes(self):
         parsed_name = self.parse_lipid_name()
-
+        if parsed_name['match'] == False:
+            return
         #add carbon chain
         for index, n in enumerate([1,2,3]):
             self.add_fatty_acid_chain(parsed_name[f'fa{n}'],parsed_name[f'u{n}'])
         
         self.update_attributes(parsed_name)
         self.check_lipide_class()
-        self.check_lipid_sub_clas()
-
+        if self.cls != None:
+            self.check_lipid_sub_clas()
+        
+        self.check_known_FA_in_name()
+        
     def parse_lipid_name(self):
         lipid_pattern = re.compile(
             r"^(?P<entry_name>[A-Za-z_]+)[\(\s]*"  # Abbreviation (letters and underscores), followed by optional open parenthesis or spaces
             r"(?P<prefix>[mdte]*|[-PO]*)"  # Prefix (optional characters), can be 'm', 'd', 't', 'e', '-', 'P', or 'O'
-            r"(?P<fa1>[0-9]+):(?P<u1>[0-9]+)[/|_]?(?P<known_chain>[FA]*)?"  # Chain 1: Carbon chain length and unsaturation count, followed by optional slash or underscore and known chain designation
+            r"(?P<fa1>[0-9]+):(?P<u1>[0-9]+)[/|_]?(?P<knownFA>[FA]*)?"  # Chain 1: Carbon chain length and unsaturation count, followed by optional slash or underscore and known chain designation
             r"((?P<fa2>[0-9]+):(?P<u2>[0-9]+))*[/|_]?((?P<fa3>[0-9]+):(?P<u3>[0-9]+))*[\)\s]*"  # Optional Chain 2 and Chain 3 (similar structure as Chain 1), enclosed in parentheses
-            r"(?P<add>.*)"  # Additional information (anything remaining)
+            r"(?P<additional_info>.*)"  # Additional information (anything remaining)
         )
-        result = {
-        'name': self.name,
-        'entry_name': None,
-        'cls': None,
-        'sub_cls': None,
-        'prefix': None,
-        'fa1': None,
-        'u1': None,
-        'fa2': None,
-        'u2': None,
-        'fa3': None,
-        'u3': None,
-        'add': None,
-        'match': None
-        }
 
         # parse the name using regex
         l_res = lipid_pattern.match(self.name)
@@ -73,12 +63,12 @@ class Lipid:
             regex_dict = l_res.groupdict()
             regex_dict['match'] = True
         
-        result.update(regex_dict)
-        return result
+        return regex_dict
 
     def update_attributes(self, update_dict):
         for key, value in update_dict.items():
-            setattr(self, key, value)
+            if hasattr(self, key):
+                setattr(self, key, value)
 
     def check_lipide_class(self):
         string_to_class = {
@@ -111,6 +101,7 @@ class Lipid:
         
         if match == None:
             print("class is unkown for",self.name)
+            #self.cls = "unknown"
             return
         
         index = match.lastindex - 1
@@ -122,8 +113,28 @@ class Lipid:
         if self.cls != "FFA" and self.entry_name.lower().startswith(r"l"):
             self.sub_cls = "L"+self.cls
 
+    def check_known_FA_in_name(self):
+        if self.knownFA == 'FA':
+            self.known_fatty_acid_chain = self.fatty_acid_chains[1:2]
+            self.known_unsaturation = self.unsaturation[1:2]
+            self.fatty_acid_chains[1:3] = [None,None]
+            self.unsaturation[1:3] = [None,None]
+
+    def to_dict(self):
+        return self.__dict__
     
-    
+    def format_lipid(self,sep="_"):
+        backbone = self.generate_backbone_string(sep)
+        print(backbone)
+
+    def generate_backbone_string(self,sep):
+        backbone_parts = []
+        for chain, unsat in zip(self.fatty_acid_chains, self.unsaturation):
+            if chain is not None and unsat is not None:
+                backbone_parts.append(f"{chain}:{unsat}")
+        return sep.join(backbone_parts)
+
+
     def display_info(self):
         print(f"Name: {self.name}")
         print(f"Class: {self.cls}")
@@ -137,58 +148,6 @@ class Lipid:
     def short_info(self):
         print(f"Name: {self.name}")
 
-
-def check_known_FA_in_name(matches):
-    if matches['known_chain'] == 'FA':
-        matches['known_chain'] == True
-        matches['fa1'] = matches['fa2']
-        matches['kfa1'] = matches['u2']
-        matches["fa2"] = None
-        matches["u2"] = None
-
-
-def check_lipide_class(matches):
-    string_to_class = {
-        r'(ce|lce)+$': 'CE',
-        r'(pe|lpe)+$': 'PE',
-        r'(hcer|hexcer)+$': 'HexCer',
-        r'(cer|lcer)+$': 'Cer',
-        r'(MAG|MG)+$': "MG",
-        r'(DAG|DG)+$': "DG",
-        r'(TAG|TG)+$': "TG",
-        r'(SM)+$': "SM",
-        r'(DCER)+$': "DhCer",
-        r'(pc|lpc)+$': "PC",
-        r'(pi|lpi)+$': "PI",
-        r'(pg)+$': "PG",
-        r'(ps)+$': "PS",
-        r'.*(ic)+$': "FFA" #if name end in "ic" it's a Free Fatty acid
-
-
-        # Add more mappings here as needed
-    }
-
-    string_class = matches['abbreviation']
-    if string_class == None:
-        return
-    
-    items_per_indicies =[items for key, items in string_to_class.items()]
-    dictkeys_pattern = re.compile('|'.join(string_to_class), re.IGNORECASE)
-    match = re.match(dictkeys_pattern, string_class)
-    
-    if match == None:
-        print("class is unkown for",matches['name'])
-        matches["class"] = "unknown"
-        return
-    index = match.lastindex - 1
-    l_class = items_per_indicies[index]
-    matches["class"] = l_class
-    if l_class != "FFA":
-        check_lipid_sub_clas(matches)
-    
-def check_lipid_sub_clas(matches):
-    if matches['name_class'].lower().startswith(r"l"):
-        matches['sub-class'] = "L"+matches['class']
 
 def convention_database(name_DB,cls,sub_cls,prefix,sep,parenthesis,kfc,**kwargs):
     if not name_DB in ['swiss','CHUV']:
@@ -262,4 +221,17 @@ if __name__ == "__main__":
     lipid2.from_name_to_attributes()
     lipid2.display_info()
 
-    
+
+    df = pd.read_excel("./Data/lipid_name_testing.xlsx")
+
+    print(df)
+
+    df2 = pd.DataFrame(list(df['name'].apply(lambda x : Lipid(x).to_dict())))
+    df_concat = pd.concat([df,df2])
+    print(df2['knownFA'])
+    df2.to_excel("results.xlsx")
+
+    lipid3 = Lipid("PE d18:0/20:4")
+    #print(lipid3.to_dict())
+
+    lipid3.format_lipid()
