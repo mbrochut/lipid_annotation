@@ -36,7 +36,7 @@ class TestLipidAttribut(unittest.TestCase):
         lipid_attributs = l1.to_dict()
         validation_dictionnary = {'name': 'LPE d18:0/20:4', 'full_name': None, 'entry_name': 'LPE', 'cls': 'PE', 'sub_cls': "LPE",
          'fatty_acid_chains': ['18', '20', None], 'unsaturation': ['0', '4', None], 'knownFA': '', 'known_fatty_acid_chain': [], 'known_unsaturation': [],
-          'prefix': 'd', 'additional_info': ''}
+          'prefix': 'd', 'additional_info': '',"match":True}
         self.assertDictEqual(validation_dictionnary,lipid_attributs)
 
     def test_attributs_with_FA_Known(self):
@@ -45,7 +45,7 @@ class TestLipidAttribut(unittest.TestCase):
         print(lipid_attributs)
         validation_dictionnary = {'name': 'TAG 50:5_FA14:2+H20', 'full_name': None, 'entry_name': 'TAG', 'cls': 'TG', 'sub_cls': None,
          'fatty_acid_chains': ['50', None, None], 'unsaturation': ['5', None, None], 'knownFA': "FA", 'known_fatty_acid_chain': ["14"], 'known_unsaturation': ["2"],
-          'prefix': "", 'additional_info': '+H20'}
+          'prefix': "", 'additional_info': '+H20',"match":True}
         self.assertDictEqual(validation_dictionnary,lipid_attributs)
 
 
