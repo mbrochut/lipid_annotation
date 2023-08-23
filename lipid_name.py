@@ -16,6 +16,7 @@ class Lipid:
         self.known_unsaturation = []
         self.prefix = None
         self.additional_info = None
+        self.match = None
         self.from_name_to_attributes()
     # set and add functions
     def add_fatty_acid_chain(self, chain, unsaturation):
@@ -91,21 +92,21 @@ class Lipid:
             # Add more mappings here as needed
         }
 
-        string_class = self.entry_name
-        if string_class == None:
+        if self.entry_name == None:
             return
         
-        items_per_indicies =[items for key, items in string_to_class.items()]
-        dictkeys_pattern = re.compile('|'.join(string_to_class), re.IGNORECASE)
-        match = re.match(dictkeys_pattern, string_class)
+
+        items_per_indicies =[items for key, items in string_to_class.items()] #create a list of each individual regex expression in dictionnary.
+        dictkeys_pattern = re.compile('|'.join(string_to_class), re.IGNORECASE) #compile the dictionnary of regex expression
+        match = re.match(dictkeys_pattern, self.entry_name) #find match in big regex
         
         if match == None:
             print("class is unkown for",self.name)
             #self.cls = "unknown"
             return
         
-        index = match.lastindex - 1
-        l_class = items_per_indicies[index]
+        index = match.lastindex - 1 #match indice will correspond to list indice
+        l_class = items_per_indicies[index] 
         self.cls = l_class
 
     def check_lipid_sub_clas(self):
@@ -123,16 +124,77 @@ class Lipid:
     def to_dict(self):
         return self.__dict__
     
-    def format_lipid(self,sep="_"):
-        backbone = self.generate_backbone_string(sep)
-        print(backbone)
+    def format_lipid(self,convention_name="std"):
+        if not self.match:
+            return
 
-    def generate_backbone_string(self,sep):
+        convention = self.convention(convention_name)
+        backbone = self.generate_backbone_string(convention['sep'],FA=convention['known_FA'])
+
+        if convention['class'] == None:
+            convention['class'] = self.entry_name
+        if not convention['parenthesis']:
+           lipid_name = convention['class'] + " "+convention["prefix"]+backbone
+        else:
+            lipid_name = convention['class'] + "("+convention["prefix"]+backbone+")"
+        return lipid_name
+
+    def generate_backbone_string(self,sep,FA = False):
         backbone_parts = []
         for chain, unsat in zip(self.fatty_acid_chains, self.unsaturation):
             if chain is not None and unsat is not None:
                 backbone_parts.append(f"{chain}:{unsat}")
+        if FA:
+            for chain, unsat in zip(self.known_fatty_acid_chain, self.known_unsaturation):
+                if chain is not None and unsat is not None:
+                    backbone_parts.append(f"{chain}:{unsat}")
         return sep.join(backbone_parts)
+
+    def convention(self,convention_name):
+        #dictionnary of result, set to standard
+        convention = {"parenthesis":True,"prefix":self.prefix,"class":self.cls,"sep":"_","known_FA":False}
+        
+        #STANDARD NOMENCLATURE --> RETRUN ONLY GIVEN INFORMATION
+        if convention_name == "std":
+            return convention
+
+        #Standard nomenclature but use sub-class if exist
+        elif convention_name == "sub":
+            if self.sub_cls:
+                convention['class'] = self.sub_cls
+                return convention
+            else:
+                return convention
+        
+        #CHUV nomenclature in Excel file
+        elif convention_name == "CHUV":
+            if self.cls in ["Cer","HexCer","DhCer"]:
+                convention['prefix'] = "d"
+                convention['sep'] = "/"
+                convention['parenthesis'] = False
+            if self.cls == "TG":
+                convention['known_FA'] = True
+            if self.sub_cls in ["LPC","LPE"]:
+                convention['class'] = self.sub_cls
+            if self.cls == "FFA":
+                convention['class'] = self.entry_name
+            return convention
+        
+        #Swiss lipid nomenclature
+        elif convention_name == "swiss":
+            if self.sub_cls:
+                convention['class'] = self.sub_cls
+            if self.cls == "FFA":
+                convention['class'] = "FA"
+            elif self.cls in ["Cer","HexCer","SM"]:
+                convention["prefix"] = "d"
+                convention['sep'] = "/"
+                convention['class'] = self.cls
+            elif self.cls == "DhCer":
+                convention['class'] = "Cer"
+                convention['prefix'] = "d"
+                convention['sep'] = "/"
+            return convention
 
 
     def display_info(self):
@@ -227,11 +289,15 @@ if __name__ == "__main__":
     print(df)
 
     df2 = pd.DataFrame(list(df['name'].apply(lambda x : Lipid(x).to_dict())))
-    df_concat = pd.concat([df,df2])
-    print(df2['knownFA'])
+
+    df2['std'] = df['name'].apply(lambda x: Lipid(x).format_lipid(convention_name="std"))
+    df2['CHUV'] = df['name'].apply(lambda x: Lipid(x).format_lipid(convention_name="CHUV"))
+    df2['SwissLipid'] = df['name'].apply(lambda x: Lipid(x).format_lipid(convention_name="swiss"))
+    print(df2)    
     df2.to_excel("results.xlsx")
 
-    lipid3 = Lipid("PE d18:0/20:4")
+    lipid3 = Lipid("hcer d18:0/20:4")
     #print(lipid3.to_dict())
-
-    lipid3.format_lipid()
+    print(lipid3.sub_cls)
+    name = lipid3.format_lipid(convention_name="CHUV")
+    print(name)
