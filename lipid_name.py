@@ -301,3 +301,10 @@ if __name__ == "__main__":
     print(lipid3.sub_cls)
     name = lipid3.format_lipid(convention_name="CHUV")
     print(name)
+
+
+    #SwissLipids = pd.read_csv("./Data/lipids.tsv",sep="\t",on_bad_lines='skip',encoding='latin-1')
+    SwissLipids = pd.read_excel("./Data/Swiss_lipids_small_sample.xlsx",index_col=0)
+    print(SwissLipids)
+    print(SwissLipids.columns.values)
+    print(SwissLipids.loc[:,"Synonyms*":"Components*"])
